@@ -6,9 +6,34 @@
  * Author: DEJI98
  */
 
-add_action('admin_menu', function () {
-    add_management_page('Bulk Term Creator', 'Bulk Term Creator', 'manage_options', 'bulk-term-creator', 'btc_render_page');
-});
+
+add_action('admin_menu', 'btc_add_top_level_menu');
+
+function btc_add_top_level_menu() {
+    add_menu_page(
+        'Bulk Term Creator',       // Page title
+        'Bulk Term Creator',       // Menu title
+        'manage_options',          // Capability
+        'bulk-term-creator',       // Menu slug
+        'btc_render_page',         // Callback function
+        'dashicons-tag',           // Icon (you can change this)
+        6                         // Position (optional)
+    );
+
+    add_submenu_page(
+        'bulk-term-creator',            // Parent slug (MUST match top-level menu slug)
+        'CSV Term Import',              // Page title
+        'CSV Import',                   // Menu title (in sidebar)
+        'manage_options',              // Capability
+        'btc-csv-import',              // Menu slug
+        'btc_render_csv_upload_page'   // Callback function to render page
+    );    
+}
+
+
+if (is_admin() && isset($_GET['page']) && $_GET['page'] === 'bulk-term-creator') {
+    require_once plugin_dir_path(__FILE__) . 'btc-import-handler.php';
+}
 
 function btc_render_page() {
     if (!current_user_can('manage_options')) return;
@@ -37,9 +62,14 @@ function btc_render_page() {
 
     $taxonomies = get_taxonomies(['public' => true], 'objects');
 
+    if (!empty($_FILES['btc_csv_file'])) {
+        btc_handle_csv_upload(); // from included file
+    }
+    
+
     echo '<div class="wrap"><h1>Bulk Term Creator</h1>';
     echo $message;
-    echo '<form method="post">';
+    echo '<form method="post" enctype="multipart/form-data">';
     wp_nonce_field('btc_create_terms');
     echo '<table class="form-table">
         <tr>
@@ -57,6 +87,11 @@ function btc_render_page() {
             <th scope="row"><label for="term_slugs">Slugs (comma or newline separated)</label></th>
             <td><textarea name="term_slugs" id="term_slugs" rows="10" class="large-text code" required></textarea>
             <p class="description">Example: <code>slug-one, slug-two, slug-three</code> or one per line.</p></td>
+        </tr>
+        <tr>
+            <th scope="row"><label for="btc_csv_file">Upload CSV (optional)</label></th>
+            <td><input type="file" name="btc_csv_file" id="btc_csv_file" accept=".csv">
+            <p class="description">CSV must contain one slug per line.</p></td>
         </tr>
     </table>';
     submit_button('Create Terms');
